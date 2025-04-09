@@ -8,6 +8,7 @@
   ]
 )
 
+
 = Bremwith
 Bremwith is an ancient and varied land of myth, magic, and memory—an expanse of mist-cloaked mountains, glimmering fens, forgotten ruins, and vibrant settlements stitched together by old roads and older stories. Once the heart of the Celestian Concord—a long-fallen alliance of kingdoms, orders, and freeholds—Bremwith today is a realm both fractured and fertile, where the echoes of legendary ages hum just beneath the surface of everyday life. From the high cliffs of Windshore to the eerie black reefs near Gloamreach, its geography is as treacherous as it is awe-inspiring, a land shaped equally by the elements and the deeds of mortals and gods.
 
@@ -64,3 +65,4 @@ Alchemists have studied Emberroot for centuries, noting its affinity with ley li
 Once the sacred symbol of the Oracle of Durnwyn, the Shattered Bell was said to ring not with sound, but with fate. Forged from starmetal and soul-glass, the bell’s chimes could alter destinies, sever futures, or bind souls to one another. It hung for centuries in the Hall of Echoes, where acolytes would interpret its silent tolls during major events.
 
 During the Siege of Durnwyn, the bell was broken by a spellfire blast. Its fragments were scattered across Bremwith, and many believe whoever reassembles the bell will gain the power to rewrite the course of the world. A dozen factions now hunt the fragments—some to rebuild, some to destroy. But all are warned: the bell’s voice may not favor its new master.
+
