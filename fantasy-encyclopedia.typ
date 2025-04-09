@@ -5,7 +5,7 @@
 
   set page(paper: "a4", numbering: none, background:{image("cover.png", width: 100%)})
 
-  align(horizon+center,text(title, font: "Libertinus Serif", size: 40pt, fill: rgb("#cdb15b")))
+  align(horizon+center,text(title, font: "Charm", size: 60pt, fill: rgb("#cdb15b")))
   pagebreak()
 
 
@@ -13,17 +13,23 @@
     paper: "a4",
     header: context {
             if calc.odd(here().page()) {
-              align(right, emph(hydra(1,skip-starting: false,use-last: true)))
+              align(right, text(emph(hydra(1,skip-starting: false,use-last: true)), font:"Charm"))
             } else {
-              align(left, emph(hydra(1,skip-starting: false))) 
+              align(left, text(emph(hydra(1,skip-starting: false)), font: "Charm")) 
             }
-            line(length: 100%)
+            //line(length: 100%)
           },
     footer: context { 
-            if calc.odd(here().page()) {
-              align(right, counter(page).display("1"))
+            if calc.odd(here().page()) {              
+              align(right,  {                             
+                h(20pt)                 
+                text(counter(page).display("1"), font: "Charm",size: 14pt)
+              })
             } else {
-              align(left, counter(page).display("1")) 
+              align(left,  {
+                h(-20pt)
+                text(counter(page).display("1"), font: "Charm",size: 14pt)
+              }) 
             }            
           },      
     columns: 2,
@@ -44,9 +50,20 @@
 
   set par(justify: true)
   set text(
-    font: "Libertinus Serif",
-    size: 11pt,
+    font: "Merriweather 24pt",
+    size: 10pt,
   )
   set align(left)
+
+  show heading.where(
+    level: 1
+  ): it => block(width: 100%)[
+    #set align(left)
+    #set text(20pt, weight: "bold",font:"Charm"    )
+    #v(0.2em)
+    #text(it.body)
+    #v(0.1em)
+  ]
+
   body
 }

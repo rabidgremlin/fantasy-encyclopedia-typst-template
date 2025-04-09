@@ -4,7 +4,7 @@
 #import "fantasy-encyclopedia.typ": fantasy-encyclopedia
 #show: fantasy-encyclopedia.with(
   title: [
-    On the nature of Bremwith
+    #v(-90pt)On the #linebreak() Nature of #linebreak() Bremwith
   ]
 )
 
