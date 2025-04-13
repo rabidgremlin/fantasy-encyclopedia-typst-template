@@ -4,14 +4,12 @@ Markdown to Typst Converter
 This script reads a Markdown file, sorts content by heading level 1,
 and outputs it as a valid Typst file.
 """
-
+import json
 import sys
 import os
 import re
-import importlib
-
-# Import commonmark
 import commonmark
+from commonmark.node import Node
 
 def convert_md_to_typst(input_file, output_file):
     """Convert Markdown file to Typst format with sorting by h1 headings"""
@@ -23,66 +21,97 @@ def convert_md_to_typst(input_file, output_file):
     # Parse markdown
     parser = commonmark.Parser()
     ast = parser.parse(markdown_text)
+
+    print("Parsed AST:")
+    json = commonmark.dumpJSON(ast)
+    print(json)
+    print("***")
     
     # Extract sections by h1 headings
     sections = {}
     current_h1 = "Unsorted Content"
-    current_content = []
+    current_section = []
     
-    walker = ast.walker()
-    event = walker.nxt()
-    while event is not None:
-        node, entering = event
-        
-        if node.t == 'heading' and node.level == 1 and entering:
-            # Save previous section
-            if current_content:
-                if current_h1 in sections:
-                    sections[current_h1].extend(current_content)
-                else:
-                    sections[current_h1] = current_content
-                
-            # Start new section
-            title_node = node.first_child
-            if title_node:
-                current_h1 = title_node.literal
+    # Create renderer to capture content
+    renderer = commonmark.HtmlRenderer()
+    
+    # Function to collect section content as raw markdown
+    def collect_section_content(node, section_start, section_end):
+        if node.sourcepos and node.sourcepos[0][0] >= section_start and node.sourcepos[1][0] <= section_end:
+            line_start = node.sourcepos[0][0]
+            line_end = node.sourcepos[1][0]
+            col_start = node.sourcepos[0][1]
+            col_end = node.sourcepos[1][1]
+            
+            # Extract the lines from the original markdown
+            section_lines = markdown_text.split('\n')[line_start-1:line_end]
+            if len(section_lines) == 1:
+                # Single line
+                return section_lines[0][col_start-1:col_end]
             else:
-                current_h1 = f"Unnamed Section {len(sections) + 1}"
-            
-            current_content = []
-            
-            # Skip until we exit this heading
-            while event and (node.t == 'heading' or entering):
-                event = walker.nxt()
-                if event:
-                    node, entering = event
-                else:
-                    break
-            
-            if not event:
-                break
-            continue
-        
-        # For all other content, store the raw markdown
-        if entering:
-            raw_markdown = node_to_markdown(node)
-            if raw_markdown:
-                current_content.append(raw_markdown)
-        
-        event = walker.nxt()
+                # Multiple lines
+                section_lines[0] = section_lines[0][col_start-1:]
+                section_lines[-1] = section_lines[-1][:col_end]
+                return '\n'.join(section_lines)
+        return ""
     
-    # Add the last section
-    if current_content:
-        if current_h1 in sections:
-            sections[current_h1].extend(current_content)
+    # Find all H1 headings
+    h1_nodes = []
+    current_node = ast.first_child
+    while current_node:
+        if current_node.t == 'heading' and current_node.level == 1:
+            h1_nodes.append(current_node)
+        current_node = current_node.nxt
+
+    # Extract sections based on H1 nodes
+    for i, h1_node in enumerate(h1_nodes):
+        # Extract heading text
+        heading_text = ""
+        child = h1_node.first_child
+        while child:
+            if child.literal:
+                heading_text += child.literal
+            child = child.nxt
+        
+        # Determine section boundaries
+        section_start = h1_node.sourcepos[0][0]  # Line number of heading start
+        if i < len(h1_nodes) - 1:
+            section_end = h1_nodes[i+1].sourcepos[0][0] - 1  # Line before next heading
         else:
-            sections[current_h1] = current_content
+            # For the last section, get to the end of file
+            section_end = markdown_text.count('\n') + 1
+        
+        # Extract the original markdown text for this section
+        section_lines = markdown_text.split('\n')[section_start-1:section_end]
+        section_content = '\n'.join(section_lines)
+        
+        # Store the section
+        sections[heading_text] = section_content
+    
+    # Handle content before the first H1, if any
+    if h1_nodes and h1_nodes[0].sourcepos[0][0] > 1:
+        first_h1_line = h1_nodes[0].sourcepos[0][0]
+        unsorted_content = '\n'.join(markdown_text.split('\n')[:first_h1_line-1])
+        if unsorted_content.strip():
+            sections["Unsorted Content"] = unsorted_content
+    elif not h1_nodes:
+        sections["Unsorted Content"] = markdown_text
     
     # Sort sections by heading name
     sorted_sections = dict(sorted(sections.items()))
     
-    # Convert to Typst format
-    typst_output = convert_sections_to_typst(sorted_sections)
+    # Create Typst output
+    typst_output = "#import \"fantasy-encyclopedia.typ\": *\n\n"
+    typst_output += "@document(title: \"Generated from Markdown\", date: \"" + get_current_date() + "\")\n\n"
+    
+    # Add sections to output, converting H1 headings to Typst format
+    for heading, content in sorted_sections.items():
+        if heading == "Unsorted Content":
+            typst_output += content + "\n\n"
+        else:
+            # Convert Markdown H1 heading to Typst H1 heading
+            content = re.sub(r'^# (.+?)$', r'= \1', content, flags=re.MULTILINE, count=1)
+            typst_output += content + "\n\n"
     
     # Write output file
     with open(output_file, 'w', encoding='utf-8') as f:
@@ -90,57 +119,6 @@ def convert_md_to_typst(input_file, output_file):
     
     print(f"Converted {input_file} to {output_file}")
     print(f"Sorted {len(sorted_sections)} sections by heading level 1")
-
-def node_to_markdown(node):
-    """Extract markdown content from a node"""
-    if node.literal:
-        return node.literal
-    return ""
-
-def convert_sections_to_typst(sections):
-    """Convert markdown sections to Typst format"""
-    typst_output = "#import \"fantasy-encyclopedia.typ\": *\n\n"
-    typst_output += "@document(title: \"Generated from Markdown\", date: \"" + get_current_date() + "\")\n\n"
-    
-    for heading, content in sections.items():
-        if heading != "Unsorted Content":
-            typst_output += f"= {heading}\n\n"
-        
-        for item in content:
-            # Convert markdown syntax to typst
-            typst_content = convert_markdown_to_typst(item)
-            typst_output += typst_content + "\n"
-    
-    return typst_output
-
-def convert_markdown_to_typst(markdown_text):
-    """Convert Markdown syntax to Typst syntax"""
-    # This is a simplified conversion - you may need to extend this
-    
-    # Convert headings
-    markdown_text = re.sub(r'^#{2} (.+)$', r'== \1', markdown_text, flags=re.MULTILINE)
-    markdown_text = re.sub(r'^#{3} (.+)$', r'=== \1', markdown_text, flags=re.MULTILINE)
-    
-    # Convert bold
-    markdown_text = re.sub(r'\*\*(.+?)\*\*', r'*\1*', markdown_text)
-    
-    # Convert italic
-    markdown_text = re.sub(r'\*(.+?)\*', r'_\1_', markdown_text)
-    
-    # Convert links
-    markdown_text = re.sub(r'\[(.+?)\]\((.+?)\)', r'#link("\2")[\1]', markdown_text)
-    
-    # Convert lists
-    markdown_text = re.sub(r'^\* (.+)$', r'- \1', markdown_text, flags=re.MULTILINE)
-    markdown_text = re.sub(r'^\d+\. (.+)$', r'+ \1', markdown_text, flags=re.MULTILINE)
-    
-    # Convert code blocks
-    markdown_text = re.sub(r'```(.+?)```', r'```\1```', markdown_text, flags=re.DOTALL)
-    
-    # Convert inline code
-    markdown_text = re.sub(r'`(.+?)`', r'`\1`', markdown_text)
-    
-    return markdown_text
 
 def get_current_date():
     """Return the current date in ISO format"""
