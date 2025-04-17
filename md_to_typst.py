@@ -10,7 +10,7 @@ from datetime import date
 from mistletoe import Document
 from mistletoe.block_token import Heading, Paragraph, BlockCode, List, ListItem, Quote
 from mistletoe.span_token import RawText, Emphasis, Strong, InlineCode, LineBreak, Link
-
+from typst_renderer import TypstRenderer
 
 def convert_md_to_typst(input_file, output_file):
     """Convert Markdown file to Typst format, sorting content by H1 headings"""
@@ -71,8 +71,14 @@ def convert_md_to_typst(input_file, output_file):
 """
 
     # Render each section
-    for title, nodes in final_sections:
-        typst_output += render_nodes(nodes)
+    #for title, nodes in final_sections:
+    #    typst_output += render_nodes(nodes)
+    with TypstRenderer() as r:
+        typst_output += r.render(ast)
+
+
+
+
 
     typst_output +="""\n#pagebreak()
 = Index
@@ -88,60 +94,60 @@ def convert_md_to_typst(input_file, output_file):
     print(f"Sorted {len(sorted_sections)} sections by H1 headings.")
 
 
-def render_nodes(nodes):
-    """Render a list of AST nodes to Typst format"""
-    output = ''
-    for node in nodes:
-        output += render_node(node)
-    return output
+# def render_nodes(nodes):
+#     """Render a list of AST nodes to Typst format"""
+#     output = ''
+#     for node in nodes:
+#         output += render_node(node)
+#     return output
 
 
-def render_node(node):
-    """Render a single AST node based on its type"""
-    if isinstance(node, Heading):
-        text = ''.join(render_inline(child) for child in node.children)
-        return f"{'=' * node.level} {text} #index-main(\"{text}\")\n\n"
-    if isinstance(node, Paragraph):
-        content = ''.join(render_inline(child) for child in node.children)
-        return f"{content}\n\n"
-    if isinstance(node, BlockCode):
-        info = node.language or ''
-        code = node.children[0].content if node.children else ''
-        return f"```{info}\n{code}```\n\n"
-    if isinstance(node, List):
-        items = []
-        for idx, item in enumerate(node.children, start=1):
-            prefix = f"{idx}. " if getattr(node, 'start', None) is not None else '- '
-            item_text = ''.join(
-                render_node(child).strip() for child in item.children)
-            items.append(f"{prefix}{item_text}")
-        return '\n'.join(items) + '\n\n'
-    if isinstance(node, Quote):
-        quote = ''.join(render_node(child) for child in node.children)
-        return f"quote {{ {quote.strip()} }}\n\n"
-    if hasattr(node, 'children'):
-        return ''.join(render_node(child) for child in node.children)
-    return ''
+# def render_node(node):
+#     """Render a single AST node based on its type"""
+#     if isinstance(node, Heading):
+#         text = ''.join(render_inline(child) for child in node.children)
+#         return f"{'=' * node.level} {text} #index-main(\"{text}\")\n\n"
+#     if isinstance(node, Paragraph):
+#         content = ''.join(render_inline(child) for child in node.children)
+#         return f"{content}\n\n"
+#     if isinstance(node, BlockCode):
+#         info = node.language or ''
+#         code = node.children[0].content if node.children else ''
+#         return f"```{info}\n{code}```\n\n"
+#     if isinstance(node, List):
+#         items = []
+#         for idx, item in enumerate(node.children, start=1):
+#             prefix = f"{idx}. " if getattr(node, 'start', None) is not None else '- '
+#             item_text = ''.join(
+#                 render_node(child).strip() for child in item.children)
+#             items.append(f"{prefix}{item_text}")
+#         return '\n'.join(items) + '\n\n'
+#     if isinstance(node, Quote):
+#         quote = ''.join(render_node(child) for child in node.children)
+#         return f"quote {{ {quote.strip()} }}\n\n"
+#     if hasattr(node, 'children'):
+#         return ''.join(render_node(child) for child in node.children)
+#     return ''
 
 
-def render_inline(token):
-    """Render inline-level tokens"""
-    if isinstance(token, RawText):
-        return token.content
-    if isinstance(token, Emphasis):
-        return f"/{''.join(render_inline(child) for child in token.children)}/"
-    if isinstance(token, Strong):
-        return f"*{''.join(render_inline(child) for child in token.children)}*"
-    if isinstance(token, InlineCode):
-        content = token.children[0].content if token.children else token.content
-        return f"`{content}`"
-    if isinstance(token, LineBreak):
-        return '\n'
-    if isinstance(token, Link):
-        return ''.join(render_inline(child) for child in token.children)
-    if hasattr(token, 'children'):
-        return ''.join(render_inline(child) for child in token.children)
-    return ''
+# def render_inline(token):
+#     """Render inline-level tokens"""
+#     if isinstance(token, RawText):
+#         return token.content
+#     if isinstance(token, Emphasis):
+#         return f"/{''.join(render_inline(child) for child in token.children)}/"
+#     if isinstance(token, Strong):
+#         return f"*{''.join(render_inline(child) for child in token.children)}*"
+#     if isinstance(token, InlineCode):
+#         content = token.children[0].content if token.children else token.content
+#         return f"`{content}`"
+#     if isinstance(token, LineBreak):
+#         return '\n'
+#     if isinstance(token, Link):
+#         return ''.join(render_inline(child) for child in token.children)
+#     if hasattr(token, 'children'):
+#         return ''.join(render_inline(child) for child in token.children)
+#     return ''
 
 
 def main():

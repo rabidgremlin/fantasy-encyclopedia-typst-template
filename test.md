@@ -7,7 +7,6 @@ Magic flows through Bremwith like blood through veins, concentrated in hidden le
 
 # The Witherwoods
 The Witherwoods are a vast, tangled forest that lies on the eastern border of Bremwith, known for its perpetually twilight canopy and whispering trees. The deeper one ventures, the more the forest seems to twist around them—paths shift, moss grows in strange runes, and shadows flicker with forms just beyond comprehension. Many believe the forest is alive and sentient, its will bound to an ancient spirit known only as The Hollow Queen, whose voice some travelers claim to have heard in their dreams.
-
 Legends say the Witherwoods were once a flourishing elven kingdom before a curse fell upon it during the Sundering of Stars. The trees themselves are remnants of those elven souls, twisted into a new, grim purpose. Certain druids and witches still commune with the woods, though none dare to stay long. Rare herbs and forgotten relics lie within for those brave—or foolish—enough to search for them.
 
 # Aelstrom Spire
