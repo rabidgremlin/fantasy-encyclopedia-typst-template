@@ -45,7 +45,7 @@ It uses:
 
 This is before the break.
 
----
+#line(length: 100%)
 
 This is after the break.
 

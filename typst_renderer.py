@@ -94,10 +94,18 @@ class TypstRenderer(BaseRenderer):
                 yield Fragment(text, wordwrap=True)
 
     def render_strong(self, token: span_token.Strong) -> Iterable[Fragment]:
-        return self.embed_span(Fragment(token.delimiter * 2), token.children)
+        return self.embed_span(
+            Fragment("#strong["),
+            token.children,
+            Fragment("]")
+        )
 
     def render_emphasis(self, token: span_token.Emphasis) -> Iterable[Fragment]:
-        return self.embed_span(Fragment(token.delimiter), token.children)
+        return self.embed_span(
+            Fragment("#emph["),
+            token.children,
+            Fragment("]")
+        )
 
     def render_inline_code(self, token: span_token.InlineCode) -> Iterable[Fragment]:
         return self.embed_span(
@@ -107,7 +115,11 @@ class TypstRenderer(BaseRenderer):
         )
 
     def render_strikethrough(self, token: span_token.Strikethrough) -> Iterable[Fragment]:
-        return self.embed_span(Fragment("~~"), token.children)
+        return self.embed_span(
+            Fragment("#strike["),
+            token.children,
+            Fragment("]")
+        )
 
     def render_image(self, token: span_token.Image) -> Iterable[Fragment]:
         # Typst: image("src", alt: "alt text")
@@ -248,20 +260,23 @@ class TypstRenderer(BaseRenderer):
     def render_list_item(
         self, token: block_token.ListItem, max_line_length: int
     ) -> Iterable[str]:
-        if self.normalize_whitespace:
-            prepend = len(token.leader) + 1
-            indentation = 0
+        # unify list markers: unordered lists use '-', ordered lists use '+'
+        orig = token.leader
+        if orig.endswith('.') and orig[:-1].isdigit():
+            marker = '+'
         else:
-            prepend = token.prepend
-            indentation = token.indentation
+            marker = '-'
+        # marker plus a space
+        prepend = len(marker) + 1
+        indentation = 0
         max_child_len = (max_line_length - prepend if max_line_length else None)
-        lines = self.blocks_to_lines(
-            token.children, max_line_length=max_child_len
-        )
+        lines = self.blocks_to_lines(token.children, max_line_length=max_child_len)
+        first_prefix = ' ' * indentation + f"{marker} "
+        child_prefix = ' ' * prepend
         return self.prefix_lines(
-            list(lines) or [""],
-            " " * indentation + token.leader + " " * (prepend - len(token.leader) - indentation),
-            " " * prepend,
+            list(lines) or [''],
+            first_prefix,
+            child_prefix,
         )
 
     def render_table(
@@ -299,13 +314,15 @@ class TypstRenderer(BaseRenderer):
         lines.append(f"{indent1})]")
         lines.append(f"{indent1}, kind: table")
         lines.append(f"{indent1})")
+        # blank line after table for spacing before next block
+        lines.append("")
         return lines
 
     def render_thematic_break(
         self, token: block_token.ThematicBreak, max_line_length: int
     ) -> Iterable[str]:
-        # Typst horizontal rule
-        return ["#line(length: 100%)"]
+        # horizontal rule
+        return ["---"]
 
     def render_html_block(
         self, token: block_token.HtmlBlock, max_line_length: int
