@@ -1,142 +1,157 @@
 #!/usr/bin/env python3
 """
-Markdown to Typst Converter
-This script reads a Markdown file, sorts content by heading level 1,
-and outputs it as a valid Typst file.
+Markdown to Typst Converter using mistletoe
 """
-import json
 import sys
 import os
-import re
-import commonmark
-from commonmark.node import Node
+from datetime import date
+
+
+from mistletoe import Document
+from mistletoe.block_token import Heading, Paragraph, BlockCode, List, ListItem, Quote
+from mistletoe.span_token import RawText, Emphasis, Strong, InlineCode, LineBreak, Link
+
 
 def convert_md_to_typst(input_file, output_file):
-    """Convert Markdown file to Typst format with sorting by h1 headings"""
-    
-    # Read input file
+    """Convert Markdown file to Typst format, sorting content by H1 headings"""
     with open(input_file, 'r', encoding='utf-8') as f:
-        markdown_text = f.read()
-    
-    # Parse markdown
-    parser = commonmark.Parser()
-    ast = parser.parse(markdown_text)
+        md_content = f.read()
 
-    print("Parsed AST:")
-    json = commonmark.dumpJSON(ast)
-    print(json)
-    print("***")
-    
-    # Extract sections by h1 headings
-    sections = {}
-    current_h1 = "Unsorted Content"
-    current_section = []
-    
-    # Create renderer to capture content
-    renderer = commonmark.HtmlRenderer()
-    
-    # Function to collect section content as raw markdown
-    def collect_section_content(node, section_start, section_end):
-        if node.sourcepos and node.sourcepos[0][0] >= section_start and node.sourcepos[1][0] <= section_end:
-            line_start = node.sourcepos[0][0]
-            line_end = node.sourcepos[1][0]
-            col_start = node.sourcepos[0][1]
-            col_end = node.sourcepos[1][1]
-            
-            # Extract the lines from the original markdown
-            section_lines = markdown_text.split('\n')[line_start-1:line_end]
-            if len(section_lines) == 1:
-                # Single line
-                return section_lines[0][col_start-1:col_end]
+    # Parse Markdown to AST
+    ast = Document(md_content)
+
+    # TODO: hook for further processing of the AST before rendering to Typst
+
+    # Split AST children into sections by H1 headings
+    sections = []
+    unsorted = []
+    current_title = None
+    current_nodes = []
+
+    for node in ast.children:
+        if isinstance(node, Heading) and node.level == 1:
+            if current_title is not None:
+                sections.append((current_title, current_nodes))
             else:
-                # Multiple lines
-                section_lines[0] = section_lines[0][col_start-1:]
-                section_lines[-1] = section_lines[-1][:col_end]
-                return '\n'.join(section_lines)
-        return ""
-    
-    # Find all H1 headings
-    h1_nodes = []
-    current_node = ast.first_child
-    while current_node:
-        if current_node.t == 'heading' and current_node.level == 1:
-            h1_nodes.append(current_node)
-        current_node = current_node.nxt
+                if unsorted:
+                    sections.append(("Unsorted Content", unsorted))
+            current_title = ''.join(
+                child.content for child in node.children if hasattr(child, 'content'))
+            current_nodes = [node]
+        else:
+            if current_title is not None:
+                current_nodes.append(node)
+            else:
+                unsorted.append(node)
 
-    # Extract sections based on H1 nodes
-    for i, h1_node in enumerate(h1_nodes):
-        # Extract heading text
-        heading_text = ""
-        child = h1_node.first_child
-        while child:
-            if child.literal:
-                heading_text += child.literal
-            child = child.nxt
-        
-        # Determine section boundaries
-        section_start = h1_node.sourcepos[0][0]  # Line number of heading start
-        if i < len(h1_nodes) - 1:
-            section_end = h1_nodes[i+1].sourcepos[0][0] - 1  # Line before next heading
-        else:
-            # For the last section, get to the end of file
-            section_end = markdown_text.count('\n') + 1
-        
-        # Extract the original markdown text for this section
-        section_lines = markdown_text.split('\n')[section_start-1:section_end]
-        section_content = '\n'.join(section_lines)
-        
-        # Store the section
-        sections[heading_text] = section_content
-    
-    # Handle content before the first H1, if any
-    if h1_nodes and h1_nodes[0].sourcepos[0][0] > 1:
-        first_h1_line = h1_nodes[0].sourcepos[0][0]
-        unsorted_content = '\n'.join(markdown_text.split('\n')[:first_h1_line-1])
-        if unsorted_content.strip():
-            sections["Unsorted Content"] = unsorted_content
-    elif not h1_nodes:
-        sections["Unsorted Content"] = markdown_text
-    
-    # Sort sections by heading name
-    sorted_sections = dict(sorted(sections.items()))
-    
-    # Create Typst output
-    typst_output = "#import \"fantasy-encyclopedia.typ\": *\n\n"
-    typst_output += "@document(title: \"Generated from Markdown\", date: \"" + get_current_date() + "\")\n\n"
-    
-    # Add sections to output, converting H1 headings to Typst format
-    for heading, content in sorted_sections.items():
-        if heading == "Unsorted Content":
-            typst_output += content + "\n\n"
-        else:
-            # Convert Markdown H1 heading to Typst H1 heading
-            content = re.sub(r'^# (.+?)$', r'= \1', content, flags=re.MULTILINE, count=1)
-            typst_output += content + "\n\n"
-    
-    # Write output file
+    if current_title is not None:
+        sections.append((current_title, current_nodes))
+    elif unsorted:
+        sections.append(("Unsorted Content", unsorted))
+
+    # Sort sections by title, keeping unsorted section first
+    unsorted_sections = [s for s in sections if s[0] == "Unsorted Content"]
+    sorted_sections = sorted(
+        [s for s in sections if s[0] != "Unsorted Content"],
+        key=lambda x: x[0])
+    final_sections = unsorted_sections + sorted_sections
+
+    # Begin Typst output
+    typst_output = ''
+    typst_output += """#import "@preview/in-dexter:0.7.0": *
+#let index-main(..args) = index(fmt: strong, ..args)
+
+
+#import "fantasy-encyclopedia.typ": fantasy-encyclopedia
+#show: fantasy-encyclopedia.with(
+  title: [
+    #v(-90pt)On the #linebreak() Nature of #linebreak() Bremwith
+  ]
+)
+"""
+
+    # Render each section
+    for title, nodes in final_sections:
+        typst_output += render_nodes(nodes)
+
+    typst_output +="""\n#pagebreak()
+= Index
+#columns(2)[
+  #make-index(title: none)
+  ]"""    
+
+    # Write to output file
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write(typst_output)
-    
-    print(f"Converted {input_file} to {output_file}")
-    print(f"Sorted {len(sorted_sections)} sections by heading level 1")
 
-def get_current_date():
-    """Return the current date in ISO format"""
-    from datetime import date
-    return date.today().isoformat()
+    print(f"Converted {input_file} to {output_file}")
+    print(f"Sorted {len(sorted_sections)} sections by H1 headings.")
+
+
+def render_nodes(nodes):
+    """Render a list of AST nodes to Typst format"""
+    output = ''
+    for node in nodes:
+        output += render_node(node)
+    return output
+
+
+def render_node(node):
+    """Render a single AST node based on its type"""
+    if isinstance(node, Heading):
+        text = ''.join(render_inline(child) for child in node.children)
+        return f"{'=' * node.level} {text} #index-main(\"{text}\")\n\n"
+    if isinstance(node, Paragraph):
+        content = ''.join(render_inline(child) for child in node.children)
+        return f"{content}\n\n"
+    if isinstance(node, BlockCode):
+        info = node.language or ''
+        code = node.children[0].content if node.children else ''
+        return f"```{info}\n{code}```\n\n"
+    if isinstance(node, List):
+        items = []
+        for idx, item in enumerate(node.children, start=1):
+            prefix = f"{idx}. " if getattr(node, 'start', None) is not None else '- '
+            item_text = ''.join(
+                render_node(child).strip() for child in item.children)
+            items.append(f"{prefix}{item_text}")
+        return '\n'.join(items) + '\n\n'
+    if isinstance(node, Quote):
+        quote = ''.join(render_node(child) for child in node.children)
+        return f"quote {{ {quote.strip()} }}\n\n"
+    if hasattr(node, 'children'):
+        return ''.join(render_node(child) for child in node.children)
+    return ''
+
+
+def render_inline(token):
+    """Render inline-level tokens"""
+    if isinstance(token, RawText):
+        return token.content
+    if isinstance(token, Emphasis):
+        return f"/{''.join(render_inline(child) for child in token.children)}/"
+    if isinstance(token, Strong):
+        return f"*{''.join(render_inline(child) for child in token.children)}*"
+    if isinstance(token, InlineCode):
+        content = token.children[0].content if token.children else token.content
+        return f"`{content}`"
+    if isinstance(token, LineBreak):
+        return '\n'
+    if isinstance(token, Link):
+        return ''.join(render_inline(child) for child in token.children)
+    if hasattr(token, 'children'):
+        return ''.join(render_inline(child) for child in token.children)
+    return ''
+
 
 def main():
     if len(sys.argv) != 3:
         print("Usage: python md_to_typst.py input.md output.typ")
         sys.exit(1)
-    
-    input_file = sys.argv[1]
-    output_file = sys.argv[2]
-    
-    if not os.path.exists(input_file):
-        print(f"Error: Input file {input_file} not found")
+    input_file, output_file = sys.argv[1], sys.argv[2]
+    if not os.path.isfile(input_file):
+        print(f"Error: input file '{input_file}' does not exist")
         sys.exit(1)
-    
     convert_md_to_typst(input_file, output_file)
 
 if __name__ == "__main__":
