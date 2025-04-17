@@ -8,6 +8,7 @@ from datetime import date
 
 
 from mistletoe import Document
+from mistletoe.ast_renderer import AstRenderer
 from mistletoe.block_token import Heading, Paragraph, BlockCode, List, ListItem, Quote
 from mistletoe.span_token import RawText, Emphasis, Strong, InlineCode, LineBreak, Link
 from typst_renderer import TypstRenderer
@@ -55,6 +56,18 @@ def convert_md_to_typst(input_file, output_file):
         [s for s in sections if s[0] != "Unsorted Content"],
         key=lambda x: x[0])
     final_sections = unsorted_sections + sorted_sections
+
+    # add index  function to each heading
+    for node in ast.children:
+        if isinstance(node, Heading) and node.level == 1:
+            heading:Heading = node
+            content= heading.children[0].content
+            heading.children[0].content =f'{content} #index-main("{content}")'
+            print(heading.children)
+
+    with AstRenderer() as r:
+        print(r.render(ast))          
+
 
     # Begin Typst output
     typst_output = ''
