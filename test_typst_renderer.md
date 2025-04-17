@@ -42,3 +42,52 @@ This is a table:
 | Cell 1, Row 2 | Cell 1, Row 2 |
 
 [^2]: another footnote
+
+### Another heading
+The following is a list:
+
+- Item A 
+- Item B
+- Item C
+
+This is a numbered list:
+
+1. Item 1
+2. Item 2
+3. Item 3
+
+Nested List:
+
+- Item A
+  - Item B
+    - Item C
+- Item D
+   * Item E
+     1. Item F
+     2. Item G
+   * Item H
+     - Item I
+       1. Item J
+       2. Item K   
+
+This is _italic_ text. This is **bold** text. This is ~~strikethrough~~ text. This is `inline code` text.
+
+# Heading Level 1
+Lorem ip.
+
+## Heading Level 2
+Bibby bibby.
+
+Dibby dibby.
+
+### Heading Level 3
+ggjhgh 
+
+#### Heading Level 4
+yuy iu.
+
+##### Heading Level 5
+Level 5 !
+
+###### Heading Level 6
+And the last heading at 6!

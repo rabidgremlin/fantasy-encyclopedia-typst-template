@@ -45,7 +45,7 @@ It uses:
 
 This is before the break.
 
-#line(length: 100%)
+---
 
 This is after the break.
 
@@ -64,3 +64,60 @@ This is a table:
   )]
   , kind: table
   )
+
+=== Another heading
+<another-heading>
+The following is a list:
+
+- Item A
+- Item B
+- Item C
+
+This is a numbered list:
+
++ Item 1
++ Item 2
++ Item 3
+
+Nested List:
+
+- Item A
+  - Item B
+    - Item C
+- Item D
+  - Item E
+    + Item F
+    + Item G
+  - Item H
+    - Item I
+      + Item J
+      + Item K
+
+This is #emph[italic] text. This is #strong[bold] text. This is
+#strike[strikethrough] text. This is `inline code` text.
+
+= Heading Level 1
+<heading-level-1>
+Lorem ip.
+
+== Heading Level 2
+<heading-level-2>
+Bibby bibby.
+
+Dibby dibby.
+
+=== Heading Level 3
+<heading-level-3>
+ggjhgh
+
+==== Heading Level 4
+<heading-level-4>
+yuy iu.
+
+===== Heading Level 5
+<heading-level-5>
+Level 5 !
+
+====== Heading Level 6
+<heading-level-6>
+And the last heading at 6!
