@@ -29,6 +29,7 @@ def convert_md_to_typst(input_file, output_file):
     current_title = None
     current_nodes = []
 
+    # sort by heading 1
     for node in ast.children:
         if isinstance(node, Heading) and node.level == 1:
             if current_title is not None:
@@ -56,17 +57,15 @@ def convert_md_to_typst(input_file, output_file):
         [s for s in sections if s[0] != "Unsorted Content"],
         key=lambda x: x[0])
     final_sections = unsorted_sections + sorted_sections
+    # Update AST children to reflect sorted sections
+    ast.children = [node for _, nodes in final_sections for node in nodes]
 
-    # add index  function to each heading
+    # add index function to each H1 heading
     for node in ast.children:
         if isinstance(node, Heading) and node.level == 1:
-            heading:Heading = node
-            content= heading.children[0].content
-            heading.children[0].content =f'{content} #index-main("{content}")'
-            print(heading.children)
-
-    with AstRenderer() as r:
-        print(r.render(ast))          
+            heading: Heading = node
+            title = heading.children[0].content
+            heading.children[0].content = f'{title} #index-main("{title}")'
 
 
     # Begin Typst output
