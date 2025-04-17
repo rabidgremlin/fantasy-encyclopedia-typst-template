@@ -25,7 +25,7 @@ class TypstRenderer(BaseRenderer):
     def __init__(
         self,
         *extras,
-        max_line_length: int = None,
+        max_line_length: int = 72,
         normalize_whitespace=False
     ):
         # remove footnotes, as in MarkdownRenderer
@@ -47,6 +47,18 @@ class TypstRenderer(BaseRenderer):
 
         self.max_line_length = max_line_length
         self.normalize_whitespace = normalize_whitespace
+        # mapping for inline footnotes: number -> text
+        self.footnotes = {}
+
+    def slugify(self, text: str) -> str:
+        """
+        Create a slug from heading text: lowercase, remove non-word chars, spaces to hyphens.
+        """
+        s = text.lower()
+        # replace non-alphanumeric characters with hyphen
+        s = re.sub(r'[^\w]+', '-', s)
+        # trim leading/trailing hyphens
+        return s.strip('-')
 
     def render(self, token: token.Token) -> str:
         if isinstance(token, block_token.BlockToken):
@@ -55,11 +67,31 @@ class TypstRenderer(BaseRenderer):
             )
         else:
             lines = self.span_to_lines([token], max_line_length=self.max_line_length)
-        return "".join(line + "\n" for line in lines)
+        # combine lines and adjust spacing
+        text = "".join(line + "\n" for line in lines)
+        # collapse extra blank line after heading anchor lines
+        text = re.sub(r'(?m)^(<[^>]+>)\n\n', r'\1\n', text)
+        return text
 
     # inline renderers
     def render_raw_text(self, token: span_token.RawText) -> Iterable[Fragment]:
-        yield Fragment(token.content, wordwrap=True)
+        # handle inline footnote references and normal text
+        text = token.content
+        # split out any footnote references "[^n]"
+        parts = re.split(r'(\[\^\d+\])', text)
+        for part in parts:
+            if not part:
+                continue
+            m = re.match(r'\[\^(?P<num>\d+)\]', part)
+            if m:
+                num = m.group('num')
+                # insert Typst footnote macro
+                foot = self.footnotes.get(num, '')
+                yield Fragment(f'#footnote[{foot}]', wordwrap=True)
+            else:
+                # replace straight apostrophes with typographic curly apostrophes
+                text = part.replace("'", "’")
+                yield Fragment(text, wordwrap=True)
 
     def render_strong(self, token: span_token.Strong) -> Iterable[Fragment]:
         return self.embed_span(Fragment(token.delimiter * 2), token.children)
@@ -88,11 +120,11 @@ class TypstRenderer(BaseRenderer):
             yield Fragment(f'#image("{src}")')
 
     def render_link(self, token: span_token.Link) -> Iterable[Fragment]:
-        # Typst: link("target", "text")
+        # Typst inline link macro: #link("target")[text];
         text = "".join(f.text for f in self.make_fragments(token.children))
         url = token.target.replace('"', '\\"')
-        txt = text.replace('"', '\\"')
-        yield Fragment(f'link("{url}", "{txt}")')
+        # terminate macro with semicolon; raw text (e.g., period) follows
+        yield Fragment(f'#link("{url}")[{text}];', wordwrap=False)
 
     def render_auto_link(self, token: span_token.AutoLink) -> Iterable[Fragment]:
         yield Fragment("<" + token.children[0].content + ">")
@@ -116,14 +148,58 @@ class TypstRenderer(BaseRenderer):
     def render_document(
         self, token: block_token.Document, max_line_length: int
     ) -> Iterable[str]:
-        return self.blocks_to_lines(token.children, max_line_length=max_line_length)
+        # extract footnote definitions and build mapping, skip def blocks and following blank lines
+        filtered_children = []
+        children = token.children
+        i = 0
+        while i < len(children):
+            child = children[i]
+            # detect footnote definition paragraph: "[^n]: text"
+            if isinstance(child, block_token.Paragraph) and len(child.children) == 1:
+                span = child.children[0]
+                if isinstance(span, span_token.RawText):
+                    m = re.match(r'^\[\^(?P<num>\d+)\]:\s*(?P<txt>.*)', span.content)
+                    if m:
+                        # store footnote text
+                        self.footnotes[m.group('num')] = m.group('txt')
+                        # if definition follows a table, remove preceding blank line
+                        if i > 1 and isinstance(children[i-2], block_token.Table):
+                            # remove blankline before definition if present in filtered_children
+                            if filtered_children and isinstance(filtered_children[-1], BlankLine):
+                                filtered_children.pop()
+                        # skip this definition
+                        i += 1
+                        # skip following blank line if present
+                        if i < len(children) and isinstance(children[i], BlankLine):
+                            i += 1
+                        continue
+            filtered_children.append(child)
+            i += 1
+        # render remaining blocks
+        return self.blocks_to_lines(filtered_children, max_line_length=max_line_length)
 
     def render_heading(
         self, token: block_token.Heading, max_line_length: int
     ) -> Iterable[str]:
         marker = "=" * token.level
-        text = next(self.span_to_lines(token.children, max_line_length=None), "")
-        return [f"{marker} {text}"]
+        # extract raw text and optional inline footnote number
+        raw = token.children[0].content if token.children and isinstance(token.children[0], span_token.RawText) else ""
+        m = re.match(r"(?P<txt>.*?)(?:\[\^(?P<num>\d+)\])?$", raw)
+        text = m.group('txt') if m else raw
+        num = m.group('num') if m and m.group('num') else None
+        # build heading line with optional inline footnote
+        if num:
+            # insert footnote macro inline
+            foot = self.footnotes.get(num, '')
+            heading_line = f"{marker} {text}#footnote[{foot}]"
+        else:
+            heading_line = f"{marker} {text}"
+        # create slug and append footnote number if present
+        slug = self.slugify(text)
+        if num:
+            slug += num
+        # heading and anchor lines
+        return [heading_line, f"<{slug}>"]
 
     def render_setext_heading(
         self, token: block_token.SetextHeading, max_line_length: int
@@ -134,11 +210,14 @@ class TypstRenderer(BaseRenderer):
     def render_quote(
         self, token: block_token.Quote, max_line_length: int
     ) -> Iterable[str]:
-        max_child_len = max_line_length - 2 if max_line_length else None
-        lines = self.blocks_to_lines(
-            token.children, max_line_length=max_child_len
-        )
-        return self.prefix_lines(lines or [""], "> ")
+        # Typst block quote macro
+        # render inner blocks without indentation
+        lines = self.blocks_to_lines(token.children, max_line_length=max_line_length)
+        return [
+            '#quote(block: true)[',
+            *lines,
+            ']',
+        ]
 
     def render_paragraph(
         self, token: block_token.Paragraph, max_line_length: int
@@ -188,19 +267,45 @@ class TypstRenderer(BaseRenderer):
     def render_table(
         self, token: block_token.Table, max_line_length: int
     ) -> Iterable[str]:
-        content = [self.table_row_to_text(token.header), []]
-        content.extend(self.table_row_to_text(row) for row in token.children)
-        col_widths = self.calculate_table_column_widths(content)
-        content[1] = self.table_separator_line_to_text(col_widths, token.column_align)
-        return [
-            self.table_row_to_line(col_text, col_widths, token.column_align)
-            for col_text in content
+        # Typst figure and table macro rendering
+        # extract header and row texts
+        header = [
+            next(self.span_to_lines(col.children, max_line_length=None), "")
+            for col in token.header.children
         ]
+        rows = [
+            [
+                next(self.span_to_lines(col.children, max_line_length=None), "")
+                for col in row.children
+            ]
+            for row in token.children
+        ]
+        indent1 = '  '
+        indent2 = '    '
+        lines = []
+        lines.append('#figure(')
+        lines.append(f"{indent1}align(center)[#table(")
+        lines.append(f"{indent2}columns: {len(header)},")
+        align_tuple = ','.join(['auto'] * len(header)) + ','
+        lines.append(f"{indent2}align: ({align_tuple}),")
+        # header row
+        header_args = ', '.join(f"[{h}]" for h in header) + ','
+        lines.append(f"{indent2}table.header({header_args}),")
+        lines.append(f"{indent2}table.hline(),")
+        # data rows
+        for row in rows:
+            row_args = ', '.join(f"[{cell}]" for cell in row)
+            lines.append(f"{indent2}{row_args},")
+        lines.append(f"{indent1})]")
+        lines.append(f"{indent1}, kind: table")
+        lines.append(f"{indent1})")
+        return lines
 
     def render_thematic_break(
         self, token: block_token.ThematicBreak, max_line_length: int
     ) -> Iterable[str]:
-        return [token.line]
+        # Typst horizontal rule
+        return ["#line(length: 100%)"]
 
     def render_html_block(
         self, token: block_token.HtmlBlock, max_line_length: int
