@@ -234,7 +234,7 @@ class TypstRenderer(BaseRenderer):
     def render_paragraph(
         self, token: block_token.Paragraph, max_line_length: int
     ) -> Iterable[str]:
-        return self.span_to_lines(token.children, max_line_length=max_line_length)
+        return [*self.span_to_lines(token.children, max_line_length=max_line_length),"\n"]
 
     def render_block_code(
         self, token: block_token.BlockCode, max_line_length: int
