@@ -321,8 +321,9 @@ class TypstRenderer(BaseRenderer):
     def render_thematic_break(
         self, token: block_token.ThematicBreak, max_line_length: int
     ) -> Iterable[str]:
-        # horizontal rule
-        return ["---"]
+        # horizontal rule (Typst line macro)
+        # use full-width line across the page
+        return ["#line(length: 100%)"]
 
     def render_html_block(
         self, token: block_token.HtmlBlock, max_line_length: int
